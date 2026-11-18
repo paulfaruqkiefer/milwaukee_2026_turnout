@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Milwaukee turnout, 2026</title>
+
+  <link
+    href="https://api.mapbox.com/mapbox-gl-js/v3.15.0/mapbox-gl.css"
+    rel="stylesheet"
+  >
+
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.15.0/mapbox-gl.js"></script>
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+
+    #map {
+      position: fixed;
+      inset: 0;
+    }
+
+    .legend {
+      position: absolute;
+      right: 16px;
+      bottom: 24px;
+      z-index: 2;
+      width: 210px;
+      padding: 14px;
+      background: rgba(7, 19, 31, 0.96);
+      color: white;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .legend-title {
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+
+    .gradient {
+      height: 14px;
+      margin: 8px 0 4px;
+      background: linear-gradient(
+        to right,
+        #f7fbff,
+        #6baed6,
+        #08519c
+      );
+    }
+
+    .labels {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .popup-heading {
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    .mapboxgl-popup-content {
+      font-size: 13px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="map"></div>
+
+  <div class="legend">
+    <div class="legend-title">
+      Milwaukee turnout, 2026
+    </div>
+
+    <div class="gradient"></div>
+
+    <div class="labels">
+      <span>0%</span>
+      <span>50%</span>
+      <span>100%</span>
+    </div>
+
+    <div style="margin-top:8px;">
+      <span
+        style="
+          display:inline-block;
+          width:14px;
+          height:14px;
+          margin-right:5px;
+          vertical-align:-2px;
+          background:#bdbdbd;
+        "
+      ></span>
+      Missing turnout
+    </div>
+  </div>
+
+  <script>
+    mapboxgl.accessToken =
+      'pk.eyJ1IjoicGtpZWZlciIsImEiOiJjbWxqeWRsNzMwNHV5M3FweTMyemY5emQzIn0.iPzQxYOu7uNUkophKSfiLA';
+
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/light-v11',
+      center: [-87.91, 43.05],
+      zoom: 10.5,
+      minZoom: 9,
+      maxZoom: 15
+    });
+
+    map.addControl(
+      new mapboxgl.NavigationControl(),
+      'top-right'
+    );
+
+    function formatPercent(value) {
+      const number = Number(value);
+
+      if (!Number.isFinite(number)) {
+        return 'Unavailable';
+      }
+
+      return `${(number * 100).toFixed(1)}%`;
+    }
+
+    map.on('load', () => {
+
+      map.addSource('wards', {
+        type: 'geojson',
+        data: 'turnout_2026_by_ward.geojson'
+      });
+
+      map.addLayer({
+        id: 'ward-fill',
+        type: 'fill',
+        source: 'wards',
+        paint: {
+          'fill-color': [
+            'case',
+
+            [
+              '==',
+              ['get', 'map_missing'],
+              true
+            ],
+            '#bdbdbd',
+
+            [
+              'interpolate',
+              ['linear'],
+              ['get', 'map_value'],
+              0, '#f7fbff',
+              0.5, '#6baed6',
+              1, '#08519c'
+            ]
+          ],
+
+          'fill-opacity': 0.82
+        }
+      });
+
+      map.addLayer({
+        id: 'ward-outline',
+        type: 'line',
+        source: 'wards',
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 0.35,
+          'line-opacity': 0.8
+        }
+      });
+
+      map.on('click', 'ward-fill', event => {
+        const p = event.features[0].properties;
+        const registeredVoters = Number(p.registered_voters);
+
+        new mapboxgl.Popup()
+          .setLngLat(event.lngLat)
+          .setHTML(`
+            <div class="popup-heading">
+              ${p.ward_label || 'Ward'}
+            </div>
+
+            <div>
+              Ward ${p.ward_id || ''}
+            </div>
+
+            <hr>
+
+            <div>
+              Turnout:
+              <strong>
+                ${formatPercent(p.map_value)}
+              </strong>
+            </div>
+
+            <div>
+              Registered voters:
+              <strong>
+                ${
+                  Number.isFinite(registeredVoters)
+                    ? registeredVoters.toLocaleString()
+                    : 'Missing'
+                }
+              </strong>
+            </div>
+          `)
+          .addTo(map);
+      });
+
+      map.on('mouseenter', 'ward-fill', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+
+      map.on('mouseleave', 'ward-fill', () => {
+        map.getCanvas().style.cursor = '';
+      });
+    });
+  </script>
+
+</body>
+</html>
